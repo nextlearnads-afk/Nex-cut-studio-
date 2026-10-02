@@ -1,0 +1,7 @@
+{
+  "name": "NextCut Studio",
+  "description": "Professional video-sharing studio for video editors to upload full-quality videos and share private viewing links with clients.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
