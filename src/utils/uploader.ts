@@ -320,69 +320,25 @@ export async function uploadVideoWithChunks({
     return { videoId, ownerToken };
   }
 
-  // C. LOCAL CLIENT FALLBACK (when testing in single browser)
-  const videoId = generateRandomId();
-  const ownerToken = 'owner_' + generateRandomId() + Date.now().toString(36);
-
-  const chunkSize = 2 * 1024 * 1024;
-  const totalChunks = Math.max(1, Math.ceil(file.size / chunkSize));
-  let uploadedBytes = 0;
-  const startTime = Date.now();
-
-  for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-    if (signal?.aborted) throw new Error('Upload cancelled');
-
-    const startByte = chunkIndex * chunkSize;
-    const endByte = Math.min(startByte + chunkSize, file.size);
-    uploadedBytes += endByte - startByte;
-
-    await new Promise((res) => setTimeout(res, 40));
-
-    const elapsed = (Date.now() - startTime) / 1000;
-    const speed = uploadedBytes / Math.max(elapsed, 0.1);
-    const percent = Math.min(Math.round((uploadedBytes / file.size) * 100), 99);
-    const remainingSecs = speed > 0 ? (file.size - uploadedBytes) / speed : 0;
-
-    onProgress({
-      status: 'uploading',
-      percent,
-      uploadedBytes,
-      totalBytes: file.size,
-      speedBytesPerSec: speed,
-      estimatedSecondsRemaining: remainingSecs,
-      videoId,
-      fileName: file.name,
-      fileSize: file.size
-    });
-  }
-
-  await saveClientVideo({
-    id: videoId,
-    ownerToken,
-    originalFileName: file.name,
-    fileSize: file.size,
-    format: file.type || 'video/mp4',
-    uploadDate: new Date().toISOString(),
-    hasThumbnail: Boolean(thumbnailBase64),
-    thumbnailDataUrl: thumbnailBase64 || undefined,
-    duration,
-    blob: file
-  });
-
-  saveOwnerToken(videoId, ownerToken);
+  // C. PERSISTENT STORAGE REQUIRED: No local storage fake fallback.
+  // The system strictly requires a persistent server or cloud storage so videos
+  // are accessible to client devices worldwide.
+  const errorMessage =
+    'Persistent storage required for client sharing. GitHub Pages only hosts the website interface. ' +
+    'To upload videos that play across different phones and client devices, connect your free Render backend or Cloudinary storage. ' +
+    'Click "Storage Setup" in the top bar to connect (100% free, 0 credit card required).';
 
   onProgress({
-    status: 'completed',
-    percent: 100,
-    uploadedBytes: file.size,
+    status: 'error',
+    percent: 0,
+    uploadedBytes: 0,
     totalBytes: file.size,
-    speedBytesPerSec: file.size / Math.max((Date.now() - startTime) / 1000, 0.1),
+    speedBytesPerSec: 0,
     estimatedSecondsRemaining: 0,
-    videoId,
-    ownerToken,
+    errorMessage,
     fileName: file.name,
     fileSize: file.size
   });
 
-  return { videoId, ownerToken };
+  throw new Error(errorMessage);
 }

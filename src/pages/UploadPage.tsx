@@ -16,6 +16,8 @@ import { UploadProgressState } from '../types';
 import { uploadVideoWithChunks } from '../utils/uploader';
 import { formatBytes, formatSpeed, formatTimeRemaining } from '../utils/format';
 import { getClientShareLink } from '../utils/url';
+import { hasPersistentStorageConfigured, getApiBaseUrl, getCloudinaryConfig } from '../utils/apiConfig';
+import { StorageSetupModal } from '../components/StorageSetupModal';
 
 interface UploadPageProps {
   onNavigate: (path: string) => void;
@@ -25,6 +27,10 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onNavigate }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [showStorageModal, setShowStorageModal] = useState<boolean>(false);
+  const [isStorageReady, setIsStorageReady] = useState<boolean>(() =>
+    Boolean(!window.location.hostname.endsWith('github.io') || hasPersistentStorageConfigured())
+  );
   const [uploadState, setUploadState] = useState<UploadProgressState>({
     status: 'idle',
     percent: 0,
@@ -175,6 +181,29 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onNavigate }) => {
         <p className="text-sm sm:text-base text-zinc-400 max-w-2xl leading-relaxed">
           Upload client cuts in bit-for-bit original quality. Get a private, watch-only link to send directly to your client with zero registration or compression.
         </p>
+
+        {/* Persistent Storage Notice on GitHub Pages */}
+        {!isStorageReady && (
+          <div className="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-left">
+            <div className="flex items-start gap-3">
+              <Zap className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold text-amber-300 uppercase tracking-wide">
+                  Persistent Storage Required For Cross-Device Sharing
+                </h4>
+                <p className="text-xs text-zinc-300 mt-0.5">
+                  GitHub Pages is static. To make client links open and stream on other phones without keeping your browser on, connect your free Render backend or Cloudinary (100% free, 0 credit cards).
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowStorageModal(true)}
+              className="shrink-0 rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs font-bold text-black hover:bg-amber-300 transition-colors shadow-sm"
+            >
+              Connect Free Storage (1 Min)
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Upload Card */}
@@ -444,6 +473,17 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onNavigate }) => {
           </p>
         </div>
       </div>
+
+      {/* Storage Setup Modal */}
+      <StorageSetupModal
+        isOpen={showStorageModal}
+        onClose={() => setShowStorageModal(false)}
+        onConfigSaved={() =>
+          setIsStorageReady(
+            Boolean(!window.location.hostname.endsWith('github.io') || hasPersistentStorageConfigured())
+          )
+        }
+      />
     </div>
   );
 };
