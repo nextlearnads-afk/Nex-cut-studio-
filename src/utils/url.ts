@@ -1,6 +1,7 @@
 /**
  * URL and Routing utilities for GitHub Pages and Custom Domains
  */
+import { getApiBaseUrl } from './apiConfig';
 
 // Normalized base path from Vite (e.g. '/Nex-cut-studio-' or '')
 export function getBaseUrl(): string {
@@ -60,12 +61,35 @@ export function navigateAppRoute(targetRoute: string): void {
   window.scrollTo(0, 0);
 }
 
+export interface ShareLinkOptions {
+  backendUrl?: string;
+  cloudStreamUrl?: string;
+  fileName?: string;
+  fileSize?: number;
+  duration?: number;
+}
+
 /**
- * Generates the full, shareable client watch link including repo base path
- * Example: "https://nextlearnads-afk.github.io/Nex-cut-studio-/watch/a8Xk92LmQp"
+ * Generates the full, shareable client watch link.
+ * Persistently routes the client directly to the video source
+ * so any device, phone, or incognito browser can load the video.
  */
-export function getClientShareLink(videoId: string): string {
+export function getClientShareLink(videoId: string, options?: ShareLinkOptions): string {
   const base = getBaseUrl();
   const origin = window.location.origin;
-  return `${origin}${base}/watch/${videoId}`;
+  const url = new URL(`${origin}${base}/watch/${videoId}`);
+
+  if (options?.cloudStreamUrl) {
+    url.searchParams.set('c', encodeURIComponent(options.cloudStreamUrl));
+    if (options.fileName) url.searchParams.set('fn', encodeURIComponent(options.fileName));
+    if (options.fileSize) url.searchParams.set('fs', options.fileSize.toString());
+    if (options.duration) url.searchParams.set('d', options.duration.toString());
+  } else {
+    const api = options?.backendUrl || getApiBaseUrl();
+    if (api) {
+      url.searchParams.set('api', encodeURIComponent(api));
+    }
+  }
+
+  return url.toString();
 }

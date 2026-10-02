@@ -33,7 +33,12 @@ export const OwnerVideoPage: React.FC<OwnerVideoPageProps> = ({ videoId, onNavig
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  const clientShareUrl = getClientShareLink(videoId);
+  const clientShareUrl = getClientShareLink(videoId, {
+    cloudStreamUrl: video?.cloudStreamUrl,
+    fileName: video?.originalFileName,
+    fileSize: video?.fileSize,
+    duration: video?.duration
+  });
 
   useEffect(() => {
     const fetchVideo = async () => {

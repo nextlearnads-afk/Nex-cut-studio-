@@ -1,4 +1,5 @@
 import { VideoMetadata, OwnerVideoSummary } from '../types';
+import { getApiBaseUrl } from './apiConfig';
 import {
   getClientVideo,
   getClientOwnerVideos,
@@ -6,21 +7,37 @@ import {
   saveClientVideo
 } from './clientStorage';
 
-// Base API prefix
-const API_PREFIX = '/api';
+function resolveBaseUrl(overrideApiUrl?: string): string {
+  if (overrideApiUrl && overrideApiUrl.trim()) {
+    return overrideApiUrl.trim().replace(/\/$/, '');
+  }
+  return getApiBaseUrl();
+}
 
-export async function fetchVideoMetadata(id: string): Promise<VideoMetadata> {
-  try {
-    const res = await fetch(`${API_PREFIX}/videos/${id}`);
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      return await res.json();
+export async function fetchVideoMetadata(id: string, overrideApiUrl?: string): Promise<VideoMetadata> {
+  const apiBase = resolveBaseUrl(overrideApiUrl);
+
+  // 1. Try remote persistent backend first
+  if (apiBase || !window.location.hostname.endsWith('github.io')) {
+    try {
+      const endpoint = `${apiBase}/api/videos/${id}`;
+      const res = await fetch(endpoint);
+      if (res.status === 404) {
+        throw new Error('This video has been deleted or is no longer available.');
+      }
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        return await res.json();
+      }
+    } catch (err: any) {
+      if (err.message?.includes('deleted or is no longer available')) {
+        throw err;
+      }
+      // Network error or offline
     }
-  } catch (_) {
-    // Server fetch failed, try client storage fallback
   }
 
-  // Fallback to client storage (IndexedDB)
+  // 2. Check local client storage (only as preview fallback on same device)
   const clientRecord = await getClientVideo(id);
   if (clientRecord) {
     const { blob, thumbnailDataUrl, ownerToken, ...meta } = clientRecord;
@@ -33,23 +50,25 @@ export async function fetchVideoMetadata(id: string): Promise<VideoMetadata> {
 export async function fetchOwnerVideosList(
   ownerTokens: string[]
 ): Promise<{ videos: OwnerVideoSummary[]; totalStorageUsed: number; freeQuotaBytes: number }> {
-  try {
-    const res = await fetch(`${API_PREFIX}/owner/videos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ownerTokens })
-    });
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      const data = await res.json();
-      return {
-        videos: data.videos || [],
-        totalStorageUsed: data.totalStorageUsed || 0,
-        freeQuotaBytes: data.freeQuotaBytes || 20 * 1024 * 1024 * 1024
-      };
-    }
-  } catch (_) {
-    // Server fetch failed
+  const apiBase = resolveBaseUrl();
+
+  if (apiBase || !window.location.hostname.endsWith('github.io')) {
+    try {
+      const res = await fetch(`${apiBase}/api/owner/videos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerTokens })
+      });
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        return {
+          videos: data.videos || [],
+          totalStorageUsed: data.totalStorageUsed || 0,
+          freeQuotaBytes: data.freeQuotaBytes || 20 * 1024 * 1024 * 1024
+        };
+      }
+    } catch (_) {}
   }
 
   // Fallback to client storage
@@ -63,19 +82,23 @@ export async function fetchOwnerVideosList(
   };
 }
 
-export async function deleteVideoById(id: string, ownerToken: string): Promise<void> {
+export async function deleteVideoById(id: string, ownerToken: string, overrideApiUrl?: string): Promise<void> {
+  const apiBase = resolveBaseUrl(overrideApiUrl);
   let serverSuccess = false;
-  try {
-    const res = await fetch(`${API_PREFIX}/videos/${id}`, {
-      method: 'DELETE',
-      headers: { 'x-owner-token': ownerToken }
-    });
-    if (res.ok) {
-      serverSuccess = true;
-    }
-  } catch (_) {}
 
-  // Also remove from client storage
+  if (apiBase || !window.location.hostname.endsWith('github.io')) {
+    try {
+      const res = await fetch(`${apiBase}/api/videos/${id}`, {
+        method: 'DELETE',
+        headers: { 'x-owner-token': ownerToken }
+      });
+      if (res.ok) {
+        serverSuccess = true;
+      }
+    } catch (_) {}
+  }
+
+  // Also remove from local device storage if present
   try {
     await deleteClientVideo(id, ownerToken);
   } catch (err: any) {
@@ -83,13 +106,20 @@ export async function deleteVideoById(id: string, ownerToken: string): Promise<v
   }
 }
 
-// Get video playback source (either server stream or client object URL)
-export async function resolveVideoPlaybackSource(videoId: string): Promise<string> {
-  // Check if we have a local blob in client storage first (e.g. for GitHub Pages)
+// Get video playback source (either remote server stream, direct cloud URL, or local blob)
+export async function resolveVideoPlaybackSource(videoId: string, overrideApiUrl?: string): Promise<string> {
+  const apiBase = resolveBaseUrl(overrideApiUrl);
+
+  // If remote backend is available, stream from backend
+  if (apiBase || !window.location.hostname.endsWith('github.io')) {
+    return `${apiBase}/api/videos/${videoId}/stream`;
+  }
+
+  // Fallback to local device storage if on same device
   const clientRecord = await getClientVideo(videoId);
   if (clientRecord?.blob) {
     return URL.createObjectURL(clientRecord.blob);
   }
-  // Otherwise standard server stream route
-  return `${API_PREFIX}/videos/${videoId}/stream`;
+
+  return `${apiBase}/api/videos/${videoId}/stream`;
 }

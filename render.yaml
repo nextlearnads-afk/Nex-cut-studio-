@@ -1,0 +1,23 @@
+# Render.com Blueprint for 100% Free Persistent Video Backend
+# 1. Sign up at https://render.com (100% Free, NO credit card required)
+# 2. Click New + -> Blueprint -> Connect your GitHub repo
+# 3. Render will deploy this service and provide a free permanent HTTPS URL:
+#    https://<your-service-name>.onrender.com
+
+services:
+  - type: web
+    name: nextcut-studio-backend
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+    disk:
+      name: nextcut-storage
+      mountPath: /app/uploads
+      sizeGB: 1

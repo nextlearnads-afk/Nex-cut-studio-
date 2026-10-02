@@ -6,6 +6,7 @@ export interface VideoMetadata {
   uploadDate: string;
   hasThumbnail: boolean;
   duration?: number;
+  cloudStreamUrl?: string;
 }
 
 export interface OwnerVideoSummary extends VideoMetadata {
@@ -24,4 +25,5 @@ export interface UploadProgressState {
   ownerToken?: string;
   fileName?: string;
   fileSize?: number;
+  cloudStreamUrl?: string;
 }

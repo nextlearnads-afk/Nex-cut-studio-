@@ -123,7 +123,11 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onNavigate }) => {
 
   const handleCopyLink = () => {
     if (!uploadState.videoId) return;
-    const clientUrl = getClientShareLink(uploadState.videoId);
+    const clientUrl = getClientShareLink(uploadState.videoId, {
+      cloudStreamUrl: uploadState.cloudStreamUrl,
+      fileName: uploadState.fileName,
+      fileSize: uploadState.fileSize
+    });
     navigator.clipboard.writeText(clientUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 3000);
@@ -150,7 +154,11 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onNavigate }) => {
     uploadState.status === 'finishing';
 
   const clientShareLink = uploadState.videoId
-    ? getClientShareLink(uploadState.videoId)
+    ? getClientShareLink(uploadState.videoId, {
+        cloudStreamUrl: uploadState.cloudStreamUrl,
+        fileName: uploadState.fileName,
+        fileSize: uploadState.fileSize
+      })
     : '';
 
   return (

@@ -97,6 +97,22 @@ async function startServer() {
   const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
   const isProd = process.env.NODE_ENV === 'production';
 
+  // Enable Cross-Origin Resource Sharing (CORS) for GitHub Pages & public requests
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Range, x-upload-id, x-chunk-index, x-chunk-offset, x-owner-token');
+    res.header('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length, Content-Type');
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
+  // Health check for free host pinging / uptime monitors (e.g. Render / Koyeb)
+  app.get('/health', (req, res) => res.json({ status: 'ok', service: 'nextcut-backend', uptime: process.uptime() }));
+  app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'nextcut-backend', uptime: process.uptime() }));
+
   // Parse JSON payloads (thumbnails, init metadata, etc.)
   app.use(express.json({ limit: '15mb' }));
 

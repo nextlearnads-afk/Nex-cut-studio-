@@ -59,10 +59,15 @@ export const ManagePage: React.FC<ManagePageProps> = ({ onNavigate }) => {
     fetchVideos();
   }, []);
 
-  const handleCopyLink = (videoId: string) => {
-    const fullUrl = getClientShareLink(videoId);
+  const handleCopyLink = (video: OwnerVideoSummary) => {
+    const fullUrl = getClientShareLink(video.id, {
+      cloudStreamUrl: video.cloudStreamUrl,
+      fileName: video.originalFileName,
+      fileSize: video.fileSize,
+      duration: video.duration
+    });
     navigator.clipboard.writeText(fullUrl);
-    setCopiedId(videoId);
+    setCopiedId(video.id);
     setTimeout(() => {
       setCopiedId(null);
     }, 2500);
@@ -233,7 +238,7 @@ export const ManagePage: React.FC<ManagePageProps> = ({ onNavigate }) => {
                 {/* Actions Row: Copy Link, Open, Delete */}
                 <div className="border-t border-zinc-800/80 bg-zinc-900/40 p-3 flex items-center justify-between gap-1">
                   <button
-                    onClick={() => handleCopyLink(video.id)}
+                    onClick={() => handleCopyLink(video)}
                     className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white px-2.5 py-1.5 text-xs font-medium transition-colors"
                     title="Copy client viewing link"
                   >

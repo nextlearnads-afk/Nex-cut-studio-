@@ -18,12 +18,16 @@ interface VideoPlayerProps {
   videoId: string;
   posterUrl?: string;
   autoPlay?: boolean;
+  customStreamUrl?: string;
+  customApiUrl?: string;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   videoId,
   posterUrl,
-  autoPlay = false
+  autoPlay = false,
+  customStreamUrl,
+  customApiUrl
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -41,19 +45,23 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPosition, setHoverPosition] = useState<number>(0);
   const [bufferedPercent, setBufferedPercent] = useState<number>(0);
-  const [streamUrl, setStreamUrl] = useState<string>(`/api/videos/${videoId}/stream`);
+  const [streamUrl, setStreamUrl] = useState<string>(() => customStreamUrl || `/api/videos/${videoId}/stream`);
 
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
+    if (customStreamUrl) {
+      setStreamUrl(customStreamUrl);
+      return;
+    }
     let active = true;
-    resolveVideoPlaybackSource(videoId).then((src) => {
+    resolveVideoPlaybackSource(videoId, customApiUrl).then((src) => {
       if (active) setStreamUrl(src);
     });
     return () => {
       active = false;
     };
-  }, [videoId]);
+  }, [videoId, customStreamUrl, customApiUrl]);
 
   // Auto-hide controls when playing and inactive
   const resetHideTimer = useCallback(() => {

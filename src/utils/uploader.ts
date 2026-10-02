@@ -2,6 +2,7 @@ import { UploadProgressState } from '../types';
 import { saveOwnerToken } from './ownerAuth';
 import { extractVideoThumbnail } from './thumbnail';
 import { saveClientVideo } from './clientStorage';
+import { getApiBaseUrl, getCloudinaryConfig } from './apiConfig';
 
 export interface UploadOptions {
   file: File;
@@ -22,7 +23,7 @@ export async function uploadVideoWithChunks({
   file,
   onProgress,
   signal
-}: UploadOptions): Promise<{ videoId: string; ownerToken: string }> {
+}: UploadOptions): Promise<{ videoId: string; ownerToken: string; cloudStreamUrl?: string }> {
   // 1. Initial State
   onProgress({
     status: 'preparing',
@@ -43,12 +44,130 @@ export async function uploadVideoWithChunks({
     throw new Error('Upload cancelled');
   }
 
-  // 2. Try server upload first
+  const apiBase = getApiBaseUrl();
+  const cloudinaryConfig = getCloudinaryConfig();
+
+  // A. DIRECT CLOUDINARY CLOUD STORAGE (100% Free, 25GB Storage, No credit card)
+  if (cloudinaryConfig?.cloudName && cloudinaryConfig?.uploadPreset) {
+    return new Promise((resolve, reject) => {
+      const videoId = generateRandomId();
+      const ownerToken = 'owner_' + generateRandomId() + Date.now().toString(36);
+      const startTime = Date.now();
+      let lastSpeedCheckTime = startTime;
+      let bytesSinceLastCheck = 0;
+      let currentSpeed = 0;
+
+      const xhr = new XMLHttpRequest();
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/video/upload`;
+
+      if (signal) {
+        signal.addEventListener('abort', () => {
+          xhr.abort();
+          reject(new Error('Upload cancelled'));
+        });
+      }
+
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const now = Date.now();
+          const timeDelta = (now - lastSpeedCheckTime) / 1000;
+          bytesSinceLastCheck += event.loaded - (xhr as any)._lastLoaded || 0;
+          (xhr as any)._lastLoaded = event.loaded;
+
+          if (timeDelta >= 0.4 || event.loaded === event.total) {
+            const instantSpeed = bytesSinceLastCheck / Math.max(timeDelta, 0.05);
+            currentSpeed = currentSpeed === 0 ? instantSpeed : currentSpeed * 0.7 + instantSpeed * 0.3;
+            lastSpeedCheckTime = now;
+            bytesSinceLastCheck = 0;
+          }
+
+          const percent = Math.min(Math.round((event.loaded / event.total) * 100), 99);
+          const remainingBytes = event.total - event.loaded;
+          const estimatedSecondsRemaining = currentSpeed > 0 ? remainingBytes / currentSpeed : 0;
+
+          onProgress({
+            status: 'uploading',
+            percent,
+            uploadedBytes: event.loaded,
+            totalBytes: event.total,
+            speedBytesPerSec: currentSpeed,
+            estimatedSecondsRemaining,
+            videoId,
+            fileName: file.name,
+            fileSize: file.size
+          });
+        }
+      };
+
+      xhr.onload = async () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            const cloudStreamUrl = response.secure_url || response.url;
+
+            saveOwnerToken(videoId, ownerToken);
+
+            // Also keep metadata in local storage for the owner
+            await saveClientVideo({
+              id: videoId,
+              ownerToken,
+              originalFileName: file.name,
+              fileSize: file.size,
+              format: file.type || 'video/mp4',
+              uploadDate: new Date().toISOString(),
+              hasThumbnail: Boolean(thumbnailBase64),
+              thumbnailDataUrl: thumbnailBase64 || undefined,
+              duration,
+              cloudStreamUrl
+            });
+
+            onProgress({
+              status: 'completed',
+              percent: 100,
+              uploadedBytes: file.size,
+              totalBytes: file.size,
+              speedBytesPerSec: currentSpeed,
+              estimatedSecondsRemaining: 0,
+              videoId,
+              ownerToken,
+              fileName: file.name,
+              fileSize: file.size,
+              cloudStreamUrl
+            });
+
+            resolve({ videoId, ownerToken, cloudStreamUrl });
+          } catch (e: any) {
+            reject(new Error('Failed to parse cloud response: ' + e.message));
+          }
+        } else {
+          try {
+            const errJson = JSON.parse(xhr.responseText);
+            reject(new Error(errJson.error?.message || `Cloud upload failed (${xhr.status})`));
+          } catch (_) {
+            reject(new Error(`Cloud upload failed (${xhr.status})`));
+          }
+        }
+      };
+
+      xhr.onerror = () => reject(new Error('Network error during cloud video upload'));
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('upload_preset', cloudinaryConfig.uploadPreset);
+      formData.append('public_id', videoId);
+
+      xhr.open('POST', uploadUrl, true);
+      xhr.send(formData);
+    });
+  }
+
+  // B. PERSISTENT NODE BACKEND PIPELINE (Render.com / Custom backend / Local)
   let isServerAvailable = false;
   let serverInitData: any = null;
 
   try {
-    const initResponse = await fetch('/api/upload/init', {
+    const initEndpoint = `${apiBase}/api/upload/init`;
+    const initResponse = await fetch(initEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -69,7 +188,6 @@ export async function uploadVideoWithChunks({
     isServerAvailable = false;
   }
 
-  // A. SERVER PIPELINE (Full-stack mode)
   if (isServerAvailable && serverInitData) {
     const { uploadId, videoId, ownerToken, chunkSize, totalChunks } = serverInitData;
 
@@ -106,7 +224,8 @@ export async function uploadVideoWithChunks({
       while (!chunkUploaded && attempts < maxAttempts) {
         attempts++;
         try {
-          const chunkResponse = await fetch('/api/upload/chunk', {
+          const chunkEndpoint = `${apiBase}/api/upload/chunk`;
+          const chunkResponse = await fetch(chunkEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/octet-stream',
@@ -171,7 +290,8 @@ export async function uploadVideoWithChunks({
       fileSize: file.size
     });
 
-    const completeResponse = await fetch('/api/upload/complete', {
+    const completeEndpoint = `${apiBase}/api/upload/complete`;
+    const completeResponse = await fetch(completeEndpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ uploadId, ownerToken, duration }),
@@ -200,8 +320,7 @@ export async function uploadVideoWithChunks({
     return { videoId, ownerToken };
   }
 
-  // B. STATIC CLIENT PIPELINE (GitHub Pages Standalone Mode)
-  // When running on GitHub Pages where no server backend exists, stores directly in browser IndexedDB
+  // C. LOCAL CLIENT FALLBACK (when testing in single browser)
   const videoId = generateRandomId();
   const ownerToken = 'owner_' + generateRandomId() + Date.now().toString(36);
 
@@ -217,8 +336,7 @@ export async function uploadVideoWithChunks({
     const endByte = Math.min(startByte + chunkSize, file.size);
     uploadedBytes += endByte - startByte;
 
-    // Small delay to simulate genuine fast chunk writing and display smooth speed/ETA
-    await new Promise((res) => setTimeout(res, 60));
+    await new Promise((res) => setTimeout(res, 40));
 
     const elapsed = (Date.now() - startTime) / 1000;
     const speed = uploadedBytes / Math.max(elapsed, 0.1);
@@ -238,7 +356,6 @@ export async function uploadVideoWithChunks({
     });
   }
 
-  // Store original video blob in IndexedDB
   await saveClientVideo({
     id: videoId,
     ownerToken,

@@ -14,12 +14,39 @@ export const ClientWatchPage: React.FC<ClientWatchPageProps> = ({ videoId }) => 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Parse URL search parameters for persistent cloud streaming or custom API host
+  const searchParams = new URLSearchParams(window.location.search);
+  const cloudUrlParam = searchParams.get('c');
+  const apiParam = searchParams.get('api');
+  const fnParam = searchParams.get('fn');
+  const fsParam = searchParams.get('fs');
+  const dParam = searchParams.get('d');
+
+  const decodedCloudUrl = cloudUrlParam ? decodeURIComponent(cloudUrlParam) : undefined;
+  const decodedApiUrl = apiParam ? decodeURIComponent(apiParam) : undefined;
+
   useEffect(() => {
+    // 1. Direct Cloud Streaming URL provided in link
+    if (decodedCloudUrl) {
+      setVideo({
+        id: videoId,
+        originalFileName: fnParam ? decodeURIComponent(fnParam) : 'Client_Review_Cut.mp4',
+        fileSize: fsParam ? parseInt(fsParam, 10) : 0,
+        format: 'video/mp4',
+        uploadDate: new Date().toISOString(),
+        hasThumbnail: false,
+        duration: dParam ? parseFloat(dParam) : undefined
+      });
+      setLoading(false);
+      return;
+    }
+
+    // 2. Fetch from persistent remote backend or API
     const fetchVideo = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await fetchVideoMetadata(videoId);
+        const data = await fetchVideoMetadata(videoId, decodedApiUrl);
         setVideo(data);
       } catch (err: any) {
         setError(err.message || 'This video has been deleted or is no longer available.');
@@ -29,7 +56,7 @@ export const ClientWatchPage: React.FC<ClientWatchPageProps> = ({ videoId }) => 
     };
 
     fetchVideo();
-  }, [videoId]);
+  }, [videoId, decodedCloudUrl, decodedApiUrl, fnParam, fsParam, dParam]);
 
   // Loading State
   if (loading) {
@@ -44,7 +71,7 @@ export const ClientWatchPage: React.FC<ClientWatchPageProps> = ({ videoId }) => 
     );
   }
 
-  // Error State: Video Deleted or Not Found (Requirement #11 & #16)
+  // Error State: Video Deleted or Not Found (Requirement: Only AFTER actual deletion should message appear)
   if (error || !video) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#07080b] px-4 py-16 text-center select-none">
@@ -65,7 +92,7 @@ export const ClientWatchPage: React.FC<ClientWatchPageProps> = ({ videoId }) => 
     );
   }
 
-  // Active Client Watch View (Watch Only)
+  // Active Client Watch View (Watch Only - No Upload, No Admin, No Delete buttons)
   return (
     <div className="min-h-screen bg-[#07080b] text-[#f0f2f5] flex flex-col justify-between selection:bg-amber-500/20">
       {/* Client Minimal Header - Strictly branding & review mode only */}
@@ -105,7 +132,12 @@ export const ClientWatchPage: React.FC<ClientWatchPageProps> = ({ videoId }) => 
 
           {/* Dedicated Custom Video Player */}
           <div className="rounded-xl overflow-hidden shadow-2xl shadow-black ring-1 ring-zinc-800">
-            <VideoPlayer videoId={videoId} autoPlay={false} />
+            <VideoPlayer
+              videoId={videoId}
+              autoPlay={false}
+              customStreamUrl={decodedCloudUrl}
+              customApiUrl={decodedApiUrl}
+            />
           </div>
 
           {/* Subtle client viewing footnote */}
