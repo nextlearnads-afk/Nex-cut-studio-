@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NextCut Studio</title>
+    <meta name="description" content="Professional video-sharing studio for video editors to upload full-quality videos and share private viewing links with clients." />
+    <meta property="og:title" content="NextCut Studio" />
+    <meta property="og:description" content="Professional video-sharing studio for video editors to upload full-quality videos and share private viewing links with clients." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Syne:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script type="text/javascript">
+      // Single Page Apps for GitHub Pages
+      // MIT License
+      // https://github.com/rafgraph/spa-github-pages
+      (function(l) {
+        if (l.search[1] === '/' ) {
+          var decoded = l.search.slice(1).split('&').map(function(s) { 
+            return s.replace(/~and~/g, '&')
+          }).join('?');
+          window.history.replaceState(null, null,
+              l.pathname.slice(0, -1) + decoded + l.hash
+          );
+        }
+      }(window.location))
+    </script>
+    <script type="module" crossorigin src="/Nex-cut-studio-/assets/index.js"></script>
+    <link rel="stylesheet" crossorigin href="/Nex-cut-studio-/assets/index.css">
+  </head>
+  <body class="bg-[#0b0c10] text-[#f0f2f5] antialiased selection:bg-amber-500/20 selection:text-amber-200">
+    <div id="root"></div>
+    <script>
+      // Fallback loader: If served directly on GitHub Pages without Vite transpilation
+      // and #root is not mounted within 400ms, load the compiled production assets.
+      setTimeout(function() {
+        var r = document.getElementById('root');
+        if (r && (!r.childNodes || r.childNodes.length === 0)) {
+          if (!document.querySelector('script[data-nextcut-bundle]')) {
+            console.log('NextCut Studio: Mounting production bundle fallback...');
+            var s = document.createElement('script');
+            s.type = 'module';
+            s.crossOrigin = 'anonymous';
+            s.setAttribute('data-nextcut-bundle', 'true');
+            s.src = '/Nex-cut-studio-/assets/index.js';
+            document.body.appendChild(s);
+
+            var c = document.createElement('link');
+            c.rel = 'stylesheet';
+            c.crossOrigin = 'anonymous';
+            c.href = '/Nex-cut-studio-/assets/index.css';
+            document.head.appendChild(c);
+          }
+        }
+      }, 400);
+    </script>
+  </body>
+</html>
+
