@@ -15,6 +15,7 @@ import {
 import { UploadProgressState } from '../types';
 import { uploadVideoWithChunks } from '../utils/uploader';
 import { formatBytes, formatSpeed, formatTimeRemaining } from '../utils/format';
+import { getClientShareLink } from '../utils/url';
 
 interface UploadPageProps {
   onNavigate: (path: string) => void;
@@ -122,7 +123,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onNavigate }) => {
 
   const handleCopyLink = () => {
     if (!uploadState.videoId) return;
-    const clientUrl = `${window.location.origin}/watch/${uploadState.videoId}`;
+    const clientUrl = getClientShareLink(uploadState.videoId);
     navigator.clipboard.writeText(clientUrl);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 3000);
@@ -149,7 +150,7 @@ export const UploadPage: React.FC<UploadPageProps> = ({ onNavigate }) => {
     uploadState.status === 'finishing';
 
   const clientShareLink = uploadState.videoId
-    ? `${window.location.origin}/watch/${uploadState.videoId}`
+    ? getClientShareLink(uploadState.videoId)
     : '';
 
   return (

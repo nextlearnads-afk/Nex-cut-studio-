@@ -15,6 +15,8 @@ import { OwnerVideoSummary } from '../types';
 import { getAllOwnerTokens, getOwnerToken, removeOwnerToken } from '../utils/ownerAuth';
 import { formatBytes, formatDate } from '../utils/format';
 import { DeleteModal } from '../components/DeleteModal';
+import { fetchOwnerVideosList, deleteVideoById } from '../utils/api';
+import { getClientShareLink } from '../utils/url';
 
 interface ManagePageProps {
   onNavigate: (path: string) => void;
@@ -40,24 +42,7 @@ export const ManagePage: React.FC<ManagePageProps> = ({ onNavigate }) => {
       setError(null);
       const tokens = getAllOwnerTokens();
 
-      if (tokens.length === 0) {
-        setVideos([]);
-        setTotalStorageUsed(0);
-        setLoading(false);
-        return;
-      }
-
-      const res = await fetch('/api/owner/videos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ownerTokens: tokens })
-      });
-
-      if (!res.ok) {
-        throw new Error('Failed to load your videos');
-      }
-
-      const data = await res.json();
+      const data = await fetchOwnerVideosList(tokens);
       setVideos(data.videos || []);
       setTotalStorageUsed(data.totalStorageUsed || 0);
       if (data.freeQuotaBytes) {
@@ -75,7 +60,7 @@ export const ManagePage: React.FC<ManagePageProps> = ({ onNavigate }) => {
   }, []);
 
   const handleCopyLink = (videoId: string) => {
-    const fullUrl = `${window.location.origin}/watch/${videoId}`;
+    const fullUrl = getClientShareLink(videoId);
     navigator.clipboard.writeText(fullUrl);
     setCopiedId(videoId);
     setTimeout(() => {
@@ -88,19 +73,9 @@ export const ManagePage: React.FC<ManagePageProps> = ({ onNavigate }) => {
 
     try {
       setIsDeleting(true);
-      const token = getOwnerToken(videoToDelete.id);
+      const token = getOwnerToken(videoToDelete.id) || '';
 
-      const res = await fetch(`/api/videos/${videoToDelete.id}`, {
-        method: 'DELETE',
-        headers: {
-          'x-owner-token': token || ''
-        }
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Failed to delete video');
-      }
+      await deleteVideoById(videoToDelete.id, token);
 
       // Remove from browser owner storage
       removeOwnerToken(videoToDelete.id);

@@ -3,6 +3,7 @@ import { Film, AlertCircle, Clock } from 'lucide-react';
 import { VideoMetadata } from '../types';
 import { formatDate } from '../utils/format';
 import { VideoPlayer } from '../components/VideoPlayer';
+import { fetchVideoMetadata } from '../utils/api';
 
 interface ClientWatchPageProps {
   videoId: string;
@@ -18,16 +19,7 @@ export const ClientWatchPage: React.FC<ClientWatchPageProps> = ({ videoId }) => 
       try {
         setLoading(true);
         setError(null);
-
-        const res = await fetch(`/api/videos/${videoId}`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            throw new Error('This video has been deleted or is no longer available.');
-          }
-          throw new Error('Video not found.');
-        }
-
-        const data = await res.json();
+        const data = await fetchVideoMetadata(videoId);
         setVideo(data);
       } catch (err: any) {
         setError(err.message || 'This video has been deleted or is no longer available.');

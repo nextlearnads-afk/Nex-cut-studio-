@@ -15,6 +15,8 @@ import { formatBytes, formatDate } from '../utils/format';
 import { getOwnerToken, removeOwnerToken } from '../utils/ownerAuth';
 import { VideoPlayer } from '../components/VideoPlayer';
 import { DeleteModal } from '../components/DeleteModal';
+import { fetchVideoMetadata, deleteVideoById } from '../utils/api';
+import { getClientShareLink } from '../utils/url';
 
 interface OwnerVideoPageProps {
   videoId: string;
@@ -31,21 +33,14 @@ export const OwnerVideoPage: React.FC<OwnerVideoPageProps> = ({ videoId, onNavig
   const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
-  const clientShareUrl = `${window.location.origin}/watch/${videoId}`;
+  const clientShareUrl = getClientShareLink(videoId);
 
   useEffect(() => {
     const fetchVideo = async () => {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(`/api/videos/${videoId}`);
-        if (!res.ok) {
-          if (res.status === 404) {
-            throw new Error('This video has been deleted or is no longer available.');
-          }
-          throw new Error('Failed to load video details');
-        }
-        const data = await res.json();
+        const data = await fetchVideoMetadata(videoId);
         setVideo(data);
       } catch (err: any) {
         setError(err.message || 'Video not found');
@@ -66,19 +61,9 @@ export const OwnerVideoPage: React.FC<OwnerVideoPageProps> = ({ videoId, onNavig
   const handleDelete = async () => {
     try {
       setIsDeleting(true);
-      const token = getOwnerToken(videoId);
+      const token = getOwnerToken(videoId) || '';
 
-      const res = await fetch(`/api/videos/${videoId}`, {
-        method: 'DELETE',
-        headers: {
-          'x-owner-token': token || ''
-        }
-      });
-
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || 'Failed to delete video');
-      }
+      await deleteVideoById(videoId, token);
 
       removeOwnerToken(videoId);
       setShowDeleteModal(false);

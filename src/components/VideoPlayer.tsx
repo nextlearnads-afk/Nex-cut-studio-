@@ -12,6 +12,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { formatDuration } from '../utils/format';
+import { resolveVideoPlaybackSource } from '../utils/api';
 
 interface VideoPlayerProps {
   videoId: string;
@@ -40,10 +41,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPosition, setHoverPosition] = useState<number>(0);
   const [bufferedPercent, setBufferedPercent] = useState<number>(0);
+  const [streamUrl, setStreamUrl] = useState<string>(`/api/videos/${videoId}/stream`);
 
   const hideControlsTimer = useRef<NodeJS.Timeout | null>(null);
 
-  const streamUrl = `/api/videos/${videoId}/stream`;
+  useEffect(() => {
+    let active = true;
+    resolveVideoPlaybackSource(videoId).then((src) => {
+      if (active) setStreamUrl(src);
+    });
+    return () => {
+      active = false;
+    };
+  }, [videoId]);
 
   // Auto-hide controls when playing and inactive
   const resetHideTimer = useCallback(() => {

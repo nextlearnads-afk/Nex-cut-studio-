@@ -4,23 +4,32 @@ import { UploadPage } from './pages/UploadPage';
 import { ManagePage } from './pages/ManagePage';
 import { OwnerVideoPage } from './pages/OwnerVideoPage';
 import { ClientWatchPage } from './pages/ClientWatchPage';
+import { getCurrentAppRoute, navigateAppRoute } from './utils/url';
+import { seedDemoVideosIfEmpty } from './utils/clientStorage';
 
 export default function App() {
-  const [currentPath, setCurrentPath] = useState<string>(() => window.location.pathname || '/');
+  const [currentPath, setCurrentPath] = useState<string>(() => getCurrentAppRoute());
 
   useEffect(() => {
+    // Ensure initial demo videos are seeded if on static GitHub Pages
+    seedDemoVideosIfEmpty();
+
     const handlePopState = () => {
-      setCurrentPath(window.location.pathname || '/');
+      setCurrentPath(getCurrentAppRoute());
     };
 
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
   }, []);
 
   const navigate = (path: string) => {
-    window.history.pushState({}, '', path);
-    setCurrentPath(path);
-    window.scrollTo(0, 0);
+    navigateAppRoute(path);
+    setCurrentPath(getCurrentAppRoute());
   };
 
   // Route 1: Client Watch Page (STRICTLY WATCH ONLY - NO NAVBAR, NO ADMIN)
@@ -75,3 +84,4 @@ export default function App() {
     </div>
   );
 }
+

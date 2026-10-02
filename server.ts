@@ -516,6 +516,11 @@ async function startServer() {
     });
   });
 
+  // Redirect root to base path
+  app.get('/', (req, res) => {
+    res.redirect('/Nex-cut-studio-/');
+  });
+
   // Setup Vite in Dev or Static files in Production
   if (!isProd) {
     const vite = await createViteServer({
@@ -524,6 +529,7 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
+    app.use('/Nex-cut-studio-', express.static(path.resolve(__dirname, 'dist')));
     app.use(express.static(path.resolve(__dirname, 'dist')));
     app.get('*', (req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
