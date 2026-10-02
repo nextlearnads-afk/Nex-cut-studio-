@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Film, AlertCircle, Clock } from 'lucide-react';
+import { Film, AlertCircle, Clock, RefreshCw, WifiOff } from 'lucide-react';
 import { VideoMetadata } from '../types';
 import { formatDate } from '../utils/format';
 import { VideoPlayer } from '../components/VideoPlayer';
@@ -12,51 +12,69 @@ interface ClientWatchPageProps {
 export const ClientWatchPage: React.FC<ClientWatchPageProps> = ({ videoId }) => {
   const [video, setVideo] = useState<VideoMetadata | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const [isDeleted, setIsDeleted] = useState<boolean>(false);
+  const [networkError, setNetworkError] = useState<string | null>(null);
 
-  // Parse URL search parameters for persistent cloud streaming or custom API host
-  const searchParams = new URLSearchParams(window.location.search);
-  const cloudUrlParam = searchParams.get('c');
-  const apiParam = searchParams.get('api');
-  const fnParam = searchParams.get('fn');
-  const fsParam = searchParams.get('fs');
-  const dParam = searchParams.get('d');
+  // Extract parameters from search string & hash, decoding any GitHub Pages ~and~ ampersands
+  const rawSearch = (window.location.search || '').replace(/~and~/g, '&');
+  const searchParams = new URLSearchParams(rawSearch);
+  const hashRaw = window.location.hash.includes('?')
+    ? window.location.hash.split('?')[1].replace(/~and~/g, '&')
+    : '';
+  const hashParams = new URLSearchParams(hashRaw);
 
-  const decodedCloudUrl = cloudUrlParam ? decodeURIComponent(cloudUrlParam) : undefined;
-  const decodedApiUrl = apiParam ? decodeURIComponent(apiParam) : undefined;
+  const cloudUrl = searchParams.get('c') || hashParams.get('c') || undefined;
+  const apiUrl = searchParams.get('api') || hashParams.get('api') || undefined;
+  const fileName = searchParams.get('fn') || hashParams.get('fn') || 'Client_Review_Cut.mp4';
+  const fileSize = searchParams.get('fs') || hashParams.get('fs') || '0';
+  const duration = searchParams.get('d') || hashParams.get('d') || undefined;
 
-  useEffect(() => {
-    // 1. Direct Cloud Streaming URL provided in link
-    if (decodedCloudUrl) {
+  const loadVideo = async () => {
+    // 1. Direct Cloud Storage URL provided in link (e.g. Cloudinary / Supabase CDN)
+    if (cloudUrl) {
       setVideo({
         id: videoId,
-        originalFileName: fnParam ? decodeURIComponent(fnParam) : 'Client_Review_Cut.mp4',
-        fileSize: fsParam ? parseInt(fsParam, 10) : 0,
+        originalFileName: fileName,
+        fileSize: parseInt(fileSize, 10) || 0,
         format: 'video/mp4',
         uploadDate: new Date().toISOString(),
         hasThumbnail: false,
-        duration: dParam ? parseFloat(dParam) : undefined
+        duration: duration ? parseFloat(duration) : undefined,
+        cloudStreamUrl: cloudUrl
       });
       setLoading(false);
+      setIsDeleted(false);
+      setNetworkError(null);
       return;
     }
 
-    // 2. Fetch from persistent remote backend or API
-    const fetchVideo = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await fetchVideoMetadata(videoId, decodedApiUrl);
-        setVideo(data);
-      } catch (err: any) {
-        setError(err.message || 'This video has been deleted or is no longer available.');
-      } finally {
-        setLoading(false);
-      }
-    };
+    // 2. Fetch metadata from persistent remote backend
+    try {
+      setLoading(true);
+      setIsDeleted(false);
+      setNetworkError(null);
 
-    fetchVideo();
-  }, [videoId, decodedCloudUrl, decodedApiUrl, fnParam, fsParam, dParam]);
+      const data = await fetchVideoMetadata(videoId, apiUrl);
+      setVideo(data);
+    } catch (err: any) {
+      const msg = err.message || '';
+      if (
+        msg.includes('deleted or is no longer available') ||
+        msg.includes('404') ||
+        msg.includes('Not Found')
+      ) {
+        setIsDeleted(true);
+      } else {
+        setNetworkError(msg || 'Unable to connect to persistent video storage.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVideo();
+  }, [videoId, cloudUrl, apiUrl]);
 
   // Loading State
   if (loading) {
@@ -71,8 +89,32 @@ export const ClientWatchPage: React.FC<ClientWatchPageProps> = ({ videoId }) => 
     );
   }
 
+  // Network / Connection Error State
+  if (networkError && !isDeleted) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-[#07080b] px-4 py-16 text-center select-none">
+        <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 text-amber-400 shadow-xl">
+          <WifiOff className="h-8 w-8" />
+        </div>
+        <h1 className="font-display text-2xl sm:text-3xl font-bold text-white mb-2">
+          Unable to Connect to Storage
+        </h1>
+        <p className="text-sm sm:text-base text-zinc-400 max-w-md mx-auto leading-relaxed mb-6">
+          {networkError}
+        </p>
+        <button
+          onClick={loadVideo}
+          className="flex items-center gap-2 rounded-lg bg-amber-400 px-4 py-2 text-xs font-semibold text-black hover:bg-amber-300 transition-colors shadow-md"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+          <span>Retry Connection</span>
+        </button>
+      </div>
+    );
+  }
+
   // Error State: Video Deleted or Not Found (Requirement: Only AFTER actual deletion should message appear)
-  if (error || !video) {
+  if (isDeleted || !video) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-[#07080b] px-4 py-16 text-center select-none">
         <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-zinc-900 border border-zinc-800 text-amber-400 shadow-xl">
@@ -135,8 +177,8 @@ export const ClientWatchPage: React.FC<ClientWatchPageProps> = ({ videoId }) => 
             <VideoPlayer
               videoId={videoId}
               autoPlay={false}
-              customStreamUrl={decodedCloudUrl}
-              customApiUrl={decodedApiUrl}
+              customStreamUrl={cloudUrl}
+              customApiUrl={apiUrl}
             />
           </div>
 

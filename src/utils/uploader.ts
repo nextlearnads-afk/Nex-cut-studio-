@@ -1,7 +1,6 @@
 import { UploadProgressState } from '../types';
 import { saveOwnerToken } from './ownerAuth';
 import { extractVideoThumbnail } from './thumbnail';
-import { saveClientVideo } from './clientStorage';
 import { getApiBaseUrl, getCloudinaryConfig } from './apiConfig';
 
 export interface UploadOptions {
@@ -106,20 +105,6 @@ export async function uploadVideoWithChunks({
             const cloudStreamUrl = response.secure_url || response.url;
 
             saveOwnerToken(videoId, ownerToken);
-
-            // Also keep metadata in local storage for the owner
-            await saveClientVideo({
-              id: videoId,
-              ownerToken,
-              originalFileName: file.name,
-              fileSize: file.size,
-              format: file.type || 'video/mp4',
-              uploadDate: new Date().toISOString(),
-              hasThumbnail: Boolean(thumbnailBase64),
-              thumbnailDataUrl: thumbnailBase64 || undefined,
-              duration,
-              cloudStreamUrl
-            });
 
             onProgress({
               status: 'completed',

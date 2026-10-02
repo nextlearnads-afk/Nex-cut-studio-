@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "q4gleHQW5vS0",
+    "ownerToken": "bb46ac26a0e84e42972b06a663bbbdbfc110a26e962ce762",
+    "originalFileName": "1000026777.mp4",
+    "fileSize": 6688864,
+    "format": "video/mp4",
+    "uploadDate": "2026-10-02T10:11:43.312Z",
+    "storageFileName": "q4gleHQW5vS0.mp4",
+    "hasThumbnail": true,
+    "duration": 30.081833
+  },
+  {
+    "id": "raZsKmqNxOea",
+    "ownerToken": "a4e11901bca106f185ecfd7845a70be7264e5cedc165a7ff",
+    "originalFileName": "1000026777.mp4",
+    "fileSize": 6688864,
+    "format": "video/mp4",
+    "uploadDate": "2026-10-02T10:11:39.093Z",
+    "storageFileName": "raZsKmqNxOea.mp4",
+    "hasThumbnail": true,
+    "duration": 30.081833
+  }
+]

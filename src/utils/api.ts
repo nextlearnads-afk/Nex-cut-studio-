@@ -1,11 +1,5 @@
 import { VideoMetadata, OwnerVideoSummary } from '../types';
 import { getApiBaseUrl } from './apiConfig';
-import {
-  getClientVideo,
-  getClientOwnerVideos,
-  deleteClientVideo,
-  saveClientVideo
-} from './clientStorage';
 
 function resolveBaseUrl(overrideApiUrl?: string): string {
   if (overrideApiUrl && overrideApiUrl.trim()) {
@@ -14,10 +8,13 @@ function resolveBaseUrl(overrideApiUrl?: string): string {
   return getApiBaseUrl();
 }
 
+/**
+ * Fetches video metadata from persistent remote backend.
+ * Never relies on local browser storage for client video resolution.
+ */
 export async function fetchVideoMetadata(id: string, overrideApiUrl?: string): Promise<VideoMetadata> {
   const apiBase = resolveBaseUrl(overrideApiUrl);
 
-  // 1. Try remote persistent backend first
   if (apiBase || !window.location.hostname.endsWith('github.io')) {
     try {
       const endpoint = `${apiBase}/api/videos/${id}`;
@@ -29,24 +26,23 @@ export async function fetchVideoMetadata(id: string, overrideApiUrl?: string): P
       if (res.ok && contentType.includes('application/json')) {
         return await res.json();
       }
+      throw new Error(`Server returned HTTP ${res.status}`);
     } catch (err: any) {
       if (err.message?.includes('deleted or is no longer available')) {
         throw err;
       }
-      // Network error or offline
+      throw new Error(err.message || 'Unable to connect to persistent video storage.');
     }
   }
 
-  // 2. Check local client storage (only as preview fallback on same device)
-  const clientRecord = await getClientVideo(id);
-  if (clientRecord) {
-    const { blob, thumbnailDataUrl, ownerToken, ...meta } = clientRecord;
-    return meta;
-  }
-
-  throw new Error('This video has been deleted or is no longer available.');
+  throw new Error(
+    'Unable to connect to remote video storage. Please ensure the viewing link includes the storage endpoint or that the persistent backend is connected.'
+  );
 }
 
+/**
+ * Retrieves the owner's uploaded videos list from persistent backend.
+ */
 export async function fetchOwnerVideosList(
   ownerTokens: string[]
 ): Promise<{ videos: OwnerVideoSummary[]; totalStorageUsed: number; freeQuotaBytes: number }> {
@@ -71,55 +67,34 @@ export async function fetchOwnerVideosList(
     } catch (_) {}
   }
 
-  // Fallback to client storage
-  const clientVideos = await getClientOwnerVideos(ownerTokens);
-  const totalStorageUsed = clientVideos.reduce((sum, v) => sum + (v.fileSize || 0), 0);
-
   return {
-    videos: clientVideos,
-    totalStorageUsed,
+    videos: [],
+    totalStorageUsed: 0,
     freeQuotaBytes: 20 * 1024 * 1024 * 1024
   };
 }
 
+/**
+ * Deletes a video permanently from remote storage and purges database metadata.
+ */
 export async function deleteVideoById(id: string, ownerToken: string, overrideApiUrl?: string): Promise<void> {
   const apiBase = resolveBaseUrl(overrideApiUrl);
-  let serverSuccess = false;
 
   if (apiBase || !window.location.hostname.endsWith('github.io')) {
-    try {
-      const res = await fetch(`${apiBase}/api/videos/${id}`, {
-        method: 'DELETE',
-        headers: { 'x-owner-token': ownerToken }
-      });
-      if (res.ok) {
-        serverSuccess = true;
-      }
-    } catch (_) {}
-  }
-
-  // Also remove from local device storage if present
-  try {
-    await deleteClientVideo(id, ownerToken);
-  } catch (err: any) {
-    if (!serverSuccess) throw err;
+    const res = await fetch(`${apiBase}/api/videos/${id}`, {
+      method: 'DELETE',
+      headers: { 'x-owner-token': ownerToken }
+    });
+    if (!res.ok && res.status !== 404) {
+      throw new Error(`Failed to delete video from remote storage (HTTP ${res.status})`);
+    }
   }
 }
 
-// Get video playback source (either remote server stream, direct cloud URL, or local blob)
+/**
+ * Returns the remote streaming URL for video playback via HTTP 206 Partial Content.
+ */
 export async function resolveVideoPlaybackSource(videoId: string, overrideApiUrl?: string): Promise<string> {
   const apiBase = resolveBaseUrl(overrideApiUrl);
-
-  // If remote backend is available, stream from backend
-  if (apiBase || !window.location.hostname.endsWith('github.io')) {
-    return `${apiBase}/api/videos/${videoId}/stream`;
-  }
-
-  // Fallback to local device storage if on same device
-  const clientRecord = await getClientVideo(videoId);
-  if (clientRecord?.blob) {
-    return URL.createObjectURL(clientRecord.blob);
-  }
-
   return `${apiBase}/api/videos/${videoId}/stream`;
 }

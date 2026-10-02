@@ -5,15 +5,11 @@ import { ManagePage } from './pages/ManagePage';
 import { OwnerVideoPage } from './pages/OwnerVideoPage';
 import { ClientWatchPage } from './pages/ClientWatchPage';
 import { getCurrentAppRoute, navigateAppRoute } from './utils/url';
-import { seedDemoVideosIfEmpty } from './utils/clientStorage';
 
 export default function App() {
   const [currentPath, setCurrentPath] = useState<string>(() => getCurrentAppRoute());
 
   useEffect(() => {
-    // Ensure initial demo videos are seeded if on static GitHub Pages
-    seedDemoVideosIfEmpty();
-
     const handlePopState = () => {
       setCurrentPath(getCurrentAppRoute());
     };
